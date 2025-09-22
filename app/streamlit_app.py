@@ -6,7 +6,11 @@ try:
     import edge_tts
 except:
     edge_tts = None
-
+try:
+    from deep_translator import GoogleTranslator
+except Exception:
+    GoogleTranslator = None
+    
 st.set_page_config(page_title="English TTS Coach", page_icon="🎙️", layout="centered")
 st.title("🎙️ English TTS Coach — MVP")
 
@@ -18,6 +22,17 @@ VOICE_PRESETS = [
     {"label": "Natasha · AU (warm — female)",          "id": "en-AU-NatashaNeural"},
     {"label": "Neerja · IN (exam-neutral — female)",   "id": "en-IN-NeerjaNeural"},
 ]
+
+@st.cache_data(show_spinner=False)
+def free_translate_to_english(text: str) -> str:
+    if not text.strip():
+        return ""
+    if GoogleTranslator is None:
+        return text
+    try:
+        return GoogleTranslator(source="auto", target="en").translate(text)
+    except Exception:
+        return text
 
 def chunk_text(text: str, max_chars: int = 2000):
     text = text.strip()
@@ -53,6 +68,8 @@ with st.sidebar:
     st.header("Input & Voice")
     raw = st.text_area("Paste your text (KR/EN)", height=220,
                        placeholder="여기에 영어/한국어 텍스트를 붙여 넣으세요…")
+    use_translation = st.checkbox("Free-translate to English (deep-translator)", value=False)
+    
     labels = [p["label"] for p in VOICE_PRESETS]
     choice = st.selectbox("Voice", labels, index=0)
     custom = st.text_input("Or custom Edge voice (optional)")
@@ -75,10 +92,16 @@ if go:
     if not raw.strip():
         st.warning("Paste some text first.")
     else:
+        # ✅ 여기서 final_text 생성
+        final_text = raw
+        if use_translation and raw.strip():
+            final_text = free_translate_to_english(raw)
+
         with st.spinner("Synthesizing…"):
-            mp3_bytes = synth_all(raw, vid, rate_str, pitch_str)
+            mp3_bytes = synth_all(final_text, vid, rate_str, pitch_str)
         st.success("Done!")
         st.session_state.audio_b64 = base64.b64encode(mp3_bytes).decode("utf-8")
+
 
 audio_b64 = st.session_state.audio_b64
 if audio_b64:
